@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { supabase } from "./lib/supabase";
 import {
   Trophy,
@@ -10,6 +10,8 @@ import {
   UserPlus,
   Settings,
   Presentation,
+  Maximize2,
+  Minimize2,
 } from "lucide-react";
 
 const EVENTS = ["Darts", "Axe Throwing", "Long Drive", "Batting Cages"];
@@ -58,6 +60,9 @@ export default function App() {
   const [activeTab, setActiveTab] = useState("admin");
   const [eventIdMap, setEventIdMap] = useState({});
   const [isResetting, setIsResetting] = useState(false);
+  const [isProjectionFullscreen, setIsProjectionFullscreen] = useState(false);
+
+  const projectionRef = useRef(null);
 
   const loadEvents = useCallback(async () => {
     const { data, error } = await supabase
@@ -151,6 +156,30 @@ export default function App() {
       supabase.removeChannel(channel);
     };
   }, [eventIdMap, loadPlayers]);
+
+  useEffect(() => {
+    const handleFullscreenChange = () => {
+      setIsProjectionFullscreen(document.fullscreenElement === projectionRef.current);
+    };
+
+    document.addEventListener("fullscreenchange", handleFullscreenChange);
+
+    return () => {
+      document.removeEventListener("fullscreenchange", handleFullscreenChange);
+    };
+  }, []);
+
+  const toggleProjectionFullscreen = async () => {
+    try {
+      if (!document.fullscreenElement) {
+        await projectionRef.current?.requestFullscreen();
+      } else if (document.fullscreenElement === projectionRef.current) {
+        await document.exitFullscreen();
+      }
+    } catch (error) {
+      console.error("FULLSCREEN ERROR:", error);
+    }
+  };
 
   const checkedInCount = players.length;
 
@@ -545,7 +574,13 @@ export default function App() {
             </div>
           </>
         ) : (
-          <div style={styles.projectionScreen}>
+          <div
+            ref={projectionRef}
+            style={{
+              ...styles.projectionScreen,
+              ...(isProjectionFullscreen ? styles.projectionScreenFullscreen : {}),
+            }}
+          >
             <div style={styles.projectionHeader}>
               <div>
                 <div style={styles.projectionEyebrow}>
@@ -553,9 +588,29 @@ export default function App() {
                 </div>
                 <h2 style={styles.projectionTitle}>Live Standings</h2>
               </div>
-              <div style={styles.projectionMeta}>
-                <span>{players.length} Players</span>
-                <span>{EVENTS.length} Events</span>
+
+              <div style={styles.projectionHeaderRight}>
+                <div style={styles.projectionMeta}>
+                  <span>{players.length} Players</span>
+                  <span>{EVENTS.length} Events</span>
+                </div>
+
+                <button
+                  onClick={toggleProjectionFullscreen}
+                  style={styles.fullscreenButton}
+                >
+                  {isProjectionFullscreen ? (
+                    <>
+                      <Minimize2 size={18} />
+                      <span>Exit Full Screen</span>
+                    </>
+                  ) : (
+                    <>
+                      <Maximize2 size={18} />
+                      <span>Full Screen</span>
+                    </>
+                  )}
+                </button>
               </div>
             </div>
 
@@ -864,6 +919,14 @@ const styles = {
     minHeight: "70vh",
     boxShadow: "0 20px 50px rgba(15, 23, 42, 0.25)",
   },
+  projectionScreenFullscreen: {
+    width: "100%",
+    height: "100%",
+    minHeight: "100vh",
+    borderRadius: 0,
+    padding: "32px",
+    overflow: "auto",
+  },
   projectionHeader: {
     display: "flex",
     justifyContent: "space-between",
@@ -871,6 +934,13 @@ const styles = {
     gap: "16px",
     marginBottom: "24px",
     flexWrap: "wrap",
+  },
+  projectionHeaderRight: {
+    display: "flex",
+    alignItems: "center",
+    gap: "14px",
+    flexWrap: "wrap",
+    justifyContent: "flex-end",
   },
   projectionEyebrow: {
     fontSize: "14px",
@@ -890,6 +960,19 @@ const styles = {
     color: "#cbd5e1",
     fontSize: "16px",
     fontWeight: 600,
+  },
+  fullscreenButton: {
+    display: "inline-flex",
+    alignItems: "center",
+    gap: "8px",
+    border: "1px solid rgba(255,255,255,0.2)",
+    background: "rgba(255,255,255,0.08)",
+    color: "white",
+    borderRadius: "14px",
+    padding: "10px 14px",
+    cursor: "pointer",
+    fontWeight: 700,
+    whiteSpace: "nowrap",
   },
   projectionEmpty: {
     display: "flex",
